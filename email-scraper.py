@@ -1,3 +1,4 @@
+import json
 from bs4 import BeautifulSoup
 import requests
 import requests.exceptions
@@ -12,10 +13,15 @@ scraped_urls = set()
 emails = set()
 
 count = 0
+
+# get settings from json
+with open('settings.json') as f:
+    settings = json.load(f)
+
 try:
   while len(urls):
     count += 1
-    if count == 200:
+    if count == settings['max_urls']:
       break
     url = urls.popleft()
     scraped_urls.add(url)
@@ -49,4 +55,11 @@ except KeyboardInterrupt:
 
 for mail in emails:
   print(mail)
+# write to file
+with open('email.txt', 'w') as f:
+  for mail in emails:
+    f.write(mail)
+    f.write('\n')
+
+
         
