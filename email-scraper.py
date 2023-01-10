@@ -6,60 +6,63 @@ import urllib.parse
 from collections import deque
 import re
 
-user_url = str(input('[+] Enter target URL to scan: '))
-urls = deque([user_url])
-
-scraped_urls = set()
-emails = set()
-
-count = 0
-
-# get settings from json
-with open('settings.json') as f:
-    settings = json.load(f)
-
 try:
-  while len(urls):
-    count += 1
-    if count == settings['max_urls']:
-      break
-    url = urls.popleft()
-    scraped_urls.add(url)
+  user_url = str(input('[+] Enter target URL to scan: '))
+  urls = deque([user_url])
 
-    parts = urllib.parse.urlsplit(url)
-    base_url = '{0.scheme}://{0.netloc}'.format(parts)
+  scraped_urls = set()
+  emails = set()
 
-    path = url[:url.rfind('/')+1] if '/' in parts.path else url
+  count = 0
 
-    print('[%d] Processing %s' % (count, url))
-    try:
-      response = requests.get(url)
-    except (requests.exceptions.MissingSchema, requests.exceptions.ConnectionError):
-      continue
+  max_urls = int(input('[+] Enter max number of URLs to scan: '))
 
-    new_emails = set(re.findall(r'[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+', response.text, re.I))
-    emails.update(new_emails)
+  try:
+    while len(urls):
+      count += 1
+      if count == max_urls:
+        break
+      url = urls.popleft()
+      scraped_urls.add(url)
 
-    soup = BeautifulSoup(response.text, features="lxml")
+      parts = urllib.parse.urlsplit(url)
+      base_url = '{0.scheme}://{0.netloc}'.format(parts)
 
-    for anchor in soup.find_all("a"):
-      link = anchor.attrs['href'] if 'href' in anchor.attrs else ''
-      if link.startswith('/'):
-        link = base_url + link
-      elif not link.startswith('http'):
-        link = path + link
-      if not link in urls and not link in scraped_urls:
-        urls.append(link)
-except KeyboardInterrupt:
-  print('[-] Closing!')
+      path = url[:url.rfind('/')+1] if '/' in parts.path else url
 
-for mail in emails:
-  print(mail)
-# write to file
-with open('email.txt', 'w') as f:
+      print('[%d] Processing %s' % (count, url))
+      try:
+        response = requests.get(url)
+      except (requests.exceptions.MissingSchema, requests.exceptions.ConnectionError):
+        continue
+
+      new_emails = set(re.findall(r'[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+', response.text, re.I))
+      emails.update(new_emails)
+
+      soup = BeautifulSoup(response.text, features="lxml")
+
+      for anchor in soup.find_all("a"):
+        link = anchor.attrs['href'] if 'href' in anchor.attrs else ''
+        if link.startswith('/'):
+          link = base_url + link
+        elif not link.startswith('http'):
+          link = path + link
+        if not link in urls and not link in scraped_urls:
+          urls.append(link)
+  except KeyboardInterrupt:
+    print('[-] Closing!')
+
   for mail in emails:
-    f.write(mail)
-    f.write('\n')
+    print(mail)
+  # write to file
+  with open('email.txt', 'w') as f:
+    for mail in emails:
+      f.write(mail)
+      f.write('\n')
+except Exception as e:
+  print(e)
 
+
+input('[+] Done! Press any key to exit...')
 
         
