@@ -58,7 +58,9 @@ def scrape_website(user_url, max_urls):
                 if "javascript" not in link and not link in urls and not link in scraped_urls:
                     urls.append(link)
 
-    except KeyboardInterrupt:
+    except Exception as e:
+        # send to error output
+        print(e)
         print('[-] Closing!')
 
     valid_phone_numbers = set()
