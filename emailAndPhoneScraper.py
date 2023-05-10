@@ -7,7 +7,19 @@ import urllib.parse
 from collections import deque
 import re
 import phonenumbers
+import spacy
 
+def extract_name_spacy(text):
+    nlp = spacy.load("de_core_news_sm")
+    doc = nlp(text)
+
+    name = None
+    for ent in doc.ents:
+        if ent.label_ == "PER" and re.match(r'^[A-Z][a-z]+\s[A-Z][a-z]+$', ent.text):
+            name = ent.text
+            break
+
+    return name
 def scrape_website(user_url, max_urls):
     # add https:// if not present
     if not user_url.startswith('http'):
@@ -19,6 +31,7 @@ def scrape_website(user_url, max_urls):
     scraped_urls = set()
     emails = set()
     phone_numbers = set()
+    ceo_names = set()
     count = 0
 
     try:
@@ -41,6 +54,11 @@ def scrape_website(user_url, max_urls):
             except (requests.exceptions.MissingSchema, requests.exceptions.ConnectionError):
                 continue
 
+            # Extraction du nom du PDG
+            ceo_pattern = r'Geschäftsführer(?:in)?\s*:\s*(\w+\s*\w*)'
+            ceo_matches = re.findall(ceo_pattern, response.text, re.I)
+            ceo_names.update(ceo_matches)
+
             new_emails = set(re.findall(r'[a-z0-9\.\-+_]+@[a-z0-9\.\-+_]+\.[a-z]+', response.text, re.I))
             emails.update(new_emails)
 
@@ -48,6 +66,11 @@ def scrape_website(user_url, max_urls):
             phone_numbers.update(new_phone_numbers)
 
             soup = BeautifulSoup(response.text, features="lxml")
+
+            # try with ai
+            ceo_name = extract_name_spacy(response.text)
+            if ceo_name:
+                ceo_names.add(ceo_name)
 
             for anchor in soup.find_all("a"):
                 link = anchor.attrs['href'] if 'href' in anchor.attrs else ''
@@ -72,7 +95,7 @@ def scrape_website(user_url, max_urls):
         except phonenumbers.NumberParseException:
             pass
 
-    return emails, valid_phone_numbers
+    return emails, valid_phone_numbers, ceo_names
 
 def main():
     parser = argparse.ArgumentParser(description="Web scraper for emails and phone numbers")
@@ -85,17 +108,17 @@ def main():
         urls = [line.strip() for line in file]
 
     with open('output.csv', 'w', newline='', encoding='utf-8') as csvfile:
-        fieldnames = ['url', 'emails', 'phone_numbers']
+        fieldnames = ['url', 'emails', 'phone_numbers', 'ceo_names']
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
 
         for user_url in urls:
             print(f"Processing: {user_url}")
-            emails, phone_numbers = scrape_website(user_url, 5)  # You can adjust max_urls here
-            if len(emails) == 0 and len(phone_numbers) == 0:
+            emails, phone_numbers, ceo_names = scrape_website(user_url, 5)  # You can adjust max_urls here
+            if len(emails) == 0 and len(phone_numbers) == 0 and len(ceo_names) == 0:
                 print(f"No emails or phone numbers found for {user_url}")
                 continue
-            result = {'url': user_url, 'emails': list(emails), 'phone_numbers': list(phone_numbers)}
+            result = {'url': user_url, 'emails': list(emails), 'phone_numbers': list(phone_numbers), 'ceo_names': list(ceo_names)}
             writer.writerow(result)
             csvfile.flush()  # Force writing the output immediately
 
